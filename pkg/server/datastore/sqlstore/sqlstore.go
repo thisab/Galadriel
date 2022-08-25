@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/HewlettPackard/galadriel/pkg/server/api/management"
 	"gorm.io/gorm"
 )
 
@@ -39,10 +40,10 @@ func (ds *Plugin) OpenDB(connectionString, dbtype string) (err error) {
 	if err != nil {
 		return fmt.Errorf("error connecting to: %s", connectionString)
 	}
-	return nil
+	return ds.createAllTablesinDB()
 }
 
-func (ds *Plugin) CreateAllTablesinDB() error {
+func (ds *Plugin) createAllTablesinDB() error {
 	if err := ds.createOrganizationTableInDB(); err != nil {
 		return err
 	}
@@ -67,8 +68,8 @@ func (ds *Plugin) CreateAllTablesinDB() error {
 // Creates the Table for the Organization Model
 // Returns Error if AutoMigrate fails
 func (ds *Plugin) createOrganizationTableInDB() error {
-	err := ds.db.AutoMigrate(&Organization{})
-	if err != nil {
+
+	if err := ds.db.AutoMigrate(&Organization{}); err != nil {
 		return fmt.Errorf("sqlstorage error: automigrate: %v", err)
 	}
 	return nil
@@ -77,8 +78,8 @@ func (ds *Plugin) createOrganizationTableInDB() error {
 // Creates the Table for the Bridge Model
 // Returns Error if AutoMigrate fails
 func (ds *Plugin) createBridgeTableInDB() error {
-	err := ds.db.AutoMigrate(&Bridge{})
-	if err != nil {
+
+	if err := ds.db.AutoMigrate(&Bridge{}); err != nil {
 		return fmt.Errorf("sqlstorage error: automigrate: %v", err)
 	}
 	return nil
@@ -87,8 +88,8 @@ func (ds *Plugin) createBridgeTableInDB() error {
 // Creates the Table for the Member Model
 // Returns Error if AutoMigrate fails
 func (ds *Plugin) createMemberTableInDB() error {
-	err := ds.db.AutoMigrate(&Member{})
-	if err != nil {
+
+	if err := ds.db.AutoMigrate(&Member{}); err != nil {
 		return fmt.Errorf("sqlstorage error: automigrate: %v", err)
 	}
 	return nil
@@ -97,8 +98,8 @@ func (ds *Plugin) createMemberTableInDB() error {
 // Creates the Table for the Membership Model
 // Returns Error if AutoMigrate fails
 func (ds *Plugin) createMembershipTableInDB() error {
-	err := ds.db.AutoMigrate(&Membership{})
-	if err != nil {
+
+	if err := ds.db.AutoMigrate(&Membership{}); err != nil {
 		return fmt.Errorf("sqlstore error: automigrate: %v", err)
 	}
 	return nil
@@ -108,8 +109,7 @@ func (ds *Plugin) createMembershipTableInDB() error {
 // Returns Error if AutoMigrate fails
 func (ds *Plugin) createRelationshipTableInDB() error {
 
-	err := ds.db.AutoMigrate(&Relationship{})
-	if err != nil {
+	if err := ds.db.AutoMigrate(&Relationship{}); err != nil {
 		return fmt.Errorf("sqlstore error: automigrate: %v", err)
 	}
 	return nil
@@ -118,23 +118,27 @@ func (ds *Plugin) createRelationshipTableInDB() error {
 // Creates the Table for the Trustbundle Model
 func (ds *Plugin) createTrustbundleTableInDB() error {
 
-	err := ds.db.AutoMigrate(&TrustBundle{})
-	if err != nil {
+	if err := ds.db.AutoMigrate(&TrustBundle{}); err != nil {
 		return fmt.Errorf("sqlstore error: automigrate: %v", err)
 	}
 	return nil
 }
 
-func (ds *Plugin) CreateOrganization(ctx context.Context, org *Organization) (*Organization, error) {
-	return ds.createOrganization(org)
+func (ds *Plugin) CreateOrganization(ctx context.Context, org *management.Organization) (*management.Organization, error) {
+
+	organization, err := ds.createOrganization(&Organization{Name: (*org).Name})
+	if err != nil {
+		return nil, err
+	}
+	org.Id = int64((*organization).ID)
+	return org, nil
 }
 
 // Insert a new Organization into the DB.
 // Ignores and returns nil if entry already exists. Returns an error if creation fails
 func (ds *Plugin) createOrganization(org *Organization) (*Organization, error) {
 
-	err := ds.db.Where(&org).FirstOrCreate(org).Error
-	if err != nil {
+	if err := ds.db.Where(&org).FirstOrCreate(org).Error; err != nil {
 		return nil, fmt.Errorf("sqlstore error: %v", err)
 	}
 	return org, nil
