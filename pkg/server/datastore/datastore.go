@@ -5,37 +5,38 @@ import (
 	"net/url"
 	"time"
 
+	management "github.com/HewlettPackard/galadriel/pkg/server/api/management"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
 // DataStore defines the data storage interface.
 type DataStore interface {
-	CreateOrganization(ctx context.Context, org *Organization) (*Organization, error)
-	CreateBridge(ctx context.Context, br *Bridge, orgID uint) (*Bridge, error)
-	CreateMember(ctx context.Context, mem *Member) (*Member, error)
-	CreateMembership(ctx context.Context, memb *Membership, memberID uint, bridgeID uint) (*Membership, error)
-	CreateTrustBundle(ctx context.Context, trust *TrustBundle, memberID uint) (*TrustBundle, error)
+	CreateOrganization(context.Context, *management.Organization) (*management.Organization, error)
+	CreateBridge(context.Context, *management.FederationGroup, uint) (*management.FederationGroup, error)
+	CreateMember(context.Context, *management.SpireServer) (*management.SpireServer, error)
+	CreateMembership(ctx context.Context, membership *management.FederationGroupMembership, memberID uint, bridgeID uint) (*management.FederationGroupMembership, error)
+	CreateTrustBundle(ctx context.Context, trust *common.Bundle, memberID uint) (*common.Bundle, error)
 	CreateRelationship(ctx context.Context, newrelation *FederationRelationship, sourceID uint, targetID uint) error
-	RetrieveOrganizationbyID(ctx context.Context, orgID uint) (*Organization, error)
-	RetrieveBridgebyID(ctx context.Context, brID uint) (*Bridge, error)
-	RetrieveAllBridgesbyOrgID(ctx context.Context, orgID uint) (*[]Bridge, error)
-	RetrieveAllMembershipsbyBridgeID(ctx context.Context, bridgeID uint) (*[]Membership, error)
-	RetrieveAllMembersbyBridgeID(ctx context.Context, bridgeID uint) (mem *[]Member, err error)
-	RetrieveAllBridgesbyMemberID(ctx context.Context, memberID uint) (mem *[]Bridge, err error)
-	RetrieveAllMembershipsbyMemberID(ctx context.Context, memberID uint) (*[]Membership, error)
+	RetrieveOrganizationbyID(ctx context.Context, orgID uint) (*management.Organization, error)
+	RetrieveBridgebyID(ctx context.Context, brID uint) (*management.FederationGroup, error)
+	RetrieveAllBridgesbyOrgID(ctx context.Context, orgID uint) (*[]management.FederationGroup, error)
+	RetrieveAllMembershipsbyBridgeID(ctx context.Context, bridgeID uint) (*[]management.FederationGroupMembership, error)
+	RetrieveAllMembersbyBridgeID(ctx context.Context, bridgeID uint) (*[]management.SpireServer, error)
+	RetrieveAllBridgesbyMemberID(ctx context.Context, memberID uint) (*[]management.FederationGroup, error)
+	RetrieveAllMembershipsbyMemberID(ctx context.Context, memberID uint) (*[]management.FederationGroupMembership, error)
 	RetrieveAllRelationshipsbyMemberID(ctx context.Context, memberID uint) (*[]FederationRelationship, error)
-	RetrieveAllTrustBundlesbyMemberID(ctx context.Context, memberID uint) (*[]TrustBundle, error)
-	RetrieveMemberbyID(ctx context.Context, memberID uint) (*Member, error)
-	RetrieveMembershipbyCreationDate(ctx context.Context, date time.Time) (*Membership, error)
-	RetrieveMembershipbyToken(ctx context.Context, token string) (*Membership, error)
+	RetrieveAllTrustBundlesbyMemberID(ctx context.Context, memberID uint) (*[]common.Bundle, error)
+	RetrieveMemberbyID(ctx context.Context, memberID uint) (*management.SpireServer, error)
+	RetrieveMembershipbyCreationDate(ctx context.Context, date time.Time) (*management.FederationGroupMembership, error)
+	RetrieveMembershipbyToken(ctx context.Context, token string) (*management.FederationGroupMembership, error)
 	RetrieveRelationshipbySourceandTargetID(ctx context.Context, source uint, target uint) (*FederationRelationship, error)
-	RetrieveTrustbundlebyMemberID(ctx context.Context, memberID string) (*TrustBundle, error)
-	UpdateBridge(ctx context.Context, br Bridge) error
-	UpdateOrganization(ctx context.Context, org Organization) error
-	UpdateMember(ctx context.Context, member Member) error
-	UpdateMembership(ctx context.Context, membership Membership) error
-	UpdateTrust(ctx context.Context, trust TrustBundle) error
+	RetrieveTrustbundlebyMemberID(ctx context.Context, memberID string) (*common.Bundle, error)
+	UpdateBridge(context.Context, management.FederationGroup) error
+	UpdateOrganization(context.Context, management.Organization) error
+	UpdateMember(context.Context, management.SpireServer) error
+	UpdateMembership(context.Context, management.FederationGroupMembership) error
+	UpdateTrust(context.Context, common.Bundle) error
 	DeleteOrganizationbyID(ctx context.Context, orgID uint) error
 	DeleteBridgebyID(ctx context.Context, bridgeID uint) error
 	DeleteMemberbyID(ctx context.Context, memberID uint) error

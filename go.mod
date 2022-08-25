@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/deepmap/oapi-codegen v1.11.0
-	github.com/hashicorp/hcl v1.0.1-0.20190430135223-99e2f22d1c94
+	github.com/hashicorp/hcl v1.0.1-vault-3
 	github.com/labstack/echo/v4 v4.7.2
 	github.com/pkg/errors v0.9.1
 	github.com/spiffe/spire-controller-manager v0.2.1
