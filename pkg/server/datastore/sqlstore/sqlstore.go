@@ -1,6 +1,7 @@
 package sqlstore
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -17,7 +18,11 @@ const (
 	SQLite = "sqlite3"
 )
 
-func OpenDB(connectionString, dbtype string) (db *gorm.DB, err error) {
+type Plugin struct {
+	db *gorm.DB
+}
+
+func (ds *Plugin) OpenDB(connectionString, dbtype string) (err error) {
 	var dialectvar dialect
 
 	switch dbtype {
@@ -28,32 +33,32 @@ func OpenDB(connectionString, dbtype string) (db *gorm.DB, err error) {
 	case MySQL:
 		dialectvar = mysqlDB{}
 	default:
-		return nil, fmt.Errorf("unsupported database_type: %s" + dbtype)
+		return fmt.Errorf("unsupported database_type: %s" + dbtype)
 	}
-	db, err = dialectvar.connect(connectionString)
+	ds.db, err = dialectvar.connect(connectionString)
 	if err != nil {
-		return nil, fmt.Errorf("error connecting to: %s", connectionString)
+		return fmt.Errorf("error connecting to: %s", connectionString)
 	}
-	return db, nil
+	return nil
 }
 
-func CreateAllTablesinDB(db *gorm.DB) error {
-	if err := CreateOrganizationTableInDB(db); err != nil {
+func (ds *Plugin) CreateAllTablesinDB() error {
+	if err := ds.createOrganizationTableInDB(); err != nil {
 		return err
 	}
-	if err := CreateBridgeTableInDB(db); err != nil {
+	if err := ds.createBridgeTableInDB(); err != nil {
 		return err
 	}
-	if err := CreateMemberTableInDB(db); err != nil {
+	if err := ds.createMemberTableInDB(); err != nil {
 		return err
 	}
-	if err := CreateMembershipTableInDB(db); err != nil {
+	if err := ds.createMembershipTableInDB(); err != nil {
 		return err
 	}
-	if err := CreateRelationshipTableInDB(db); err != nil {
+	if err := ds.createRelationshipTableInDB(); err != nil {
 		return err
 	}
-	if err := CreateTrustbundleTableInDB(db); err != nil {
+	if err := ds.createTrustbundleTableInDB(); err != nil {
 		return err
 	}
 	return nil
@@ -61,8 +66,8 @@ func CreateAllTablesinDB(db *gorm.DB) error {
 
 // Creates the Table for the Organization Model
 // Returns Error if AutoMigrate fails
-func CreateOrganizationTableInDB(db *gorm.DB) error {
-	err := db.AutoMigrate(&Organization{})
+func (ds *Plugin) createOrganizationTableInDB() error {
+	err := ds.db.AutoMigrate(&Organization{})
 	if err != nil {
 		return fmt.Errorf("sqlstorage error: automigrate: %v", err)
 	}
@@ -71,8 +76,8 @@ func CreateOrganizationTableInDB(db *gorm.DB) error {
 
 // Creates the Table for the Bridge Model
 // Returns Error if AutoMigrate fails
-func CreateBridgeTableInDB(db *gorm.DB) error {
-	err := db.AutoMigrate(&Bridge{})
+func (ds *Plugin) createBridgeTableInDB() error {
+	err := ds.db.AutoMigrate(&Bridge{})
 	if err != nil {
 		return fmt.Errorf("sqlstorage error: automigrate: %v", err)
 	}
@@ -81,8 +86,8 @@ func CreateBridgeTableInDB(db *gorm.DB) error {
 
 // Creates the Table for the Member Model
 // Returns Error if AutoMigrate fails
-func CreateMemberTableInDB(db *gorm.DB) error {
-	err := db.AutoMigrate(&Member{})
+func (ds *Plugin) createMemberTableInDB() error {
+	err := ds.db.AutoMigrate(&Member{})
 	if err != nil {
 		return fmt.Errorf("sqlstorage error: automigrate: %v", err)
 	}
@@ -91,8 +96,8 @@ func CreateMemberTableInDB(db *gorm.DB) error {
 
 // Creates the Table for the Membership Model
 // Returns Error if AutoMigrate fails
-func CreateMembershipTableInDB(db *gorm.DB) error {
-	err := db.AutoMigrate(&Membership{})
+func (ds *Plugin) createMembershipTableInDB() error {
+	err := ds.db.AutoMigrate(&Membership{})
 	if err != nil {
 		return fmt.Errorf("sqlstore error: automigrate: %v", err)
 	}
@@ -101,9 +106,9 @@ func CreateMembershipTableInDB(db *gorm.DB) error {
 
 // Creates the Table for the Relationship Model
 // Returns Error if AutoMigrate fails
-func CreateRelationshipTableInDB(db *gorm.DB) error {
+func (ds *Plugin) createRelationshipTableInDB() error {
 
-	err := db.AutoMigrate(&Relationship{})
+	err := ds.db.AutoMigrate(&Relationship{})
 	if err != nil {
 		return fmt.Errorf("sqlstore error: automigrate: %v", err)
 	}
@@ -111,20 +116,24 @@ func CreateRelationshipTableInDB(db *gorm.DB) error {
 }
 
 // Creates the Table for the Trustbundle Model
-func CreateTrustbundleTableInDB(db *gorm.DB) error {
+func (ds *Plugin) createTrustbundleTableInDB() error {
 
-	err := db.AutoMigrate(&TrustBundle{})
+	err := ds.db.AutoMigrate(&TrustBundle{})
 	if err != nil {
 		return fmt.Errorf("sqlstore error: automigrate: %v", err)
 	}
 	return nil
 }
 
+func (ds *Plugin) CreateOrganization(ctx context.Context, org *Organization) (*Organization, error) {
+	return ds.createOrganization(org)
+}
+
 // Insert a new Organization into the DB.
 // Ignores and returns nil if entry already exists. Returns an error if creation fails
-func CreateOrganization(db *gorm.DB, org *Organization) (*Organization, error) {
+func (ds *Plugin) createOrganization(org *Organization) (*Organization, error) {
 
-	err := db.Where(&org).FirstOrCreate(org).Error
+	err := ds.db.Where(&org).FirstOrCreate(org).Error
 	if err != nil {
 		return nil, fmt.Errorf("sqlstore error: %v", err)
 	}
@@ -133,14 +142,14 @@ func CreateOrganization(db *gorm.DB, org *Organization) (*Organization, error) {
 
 // Creates a new Bridge or ATB  from an Organization Name
 // Ignores and returns nil if it already exists. Returns an error if creation fails
-func CreateBridge(db *gorm.DB, br *Bridge, orgID uint) (*Bridge, error) {
+func (ds *Plugin) CreateBridge(br *Bridge, orgID uint) (*Bridge, error) {
 
-	org, err := RetrieveOrganizationbyID(db, orgID)
+	org, err := ds.RetrieveOrganizationbyID(orgID)
 	if err != nil {
 		return nil, err
 	}
 	br.OrganizationID = org.ID // Fill in the OrgID for the bridge
-	err = db.Where(&br).FirstOrCreate(br).Error
+	err = ds.db.Where(&br).FirstOrCreate(br).Error
 	if err != nil {
 		return nil, fmt.Errorf("sqlstore error: %v", err)
 	}
@@ -149,8 +158,8 @@ func CreateBridge(db *gorm.DB, br *Bridge, orgID uint) (*Bridge, error) {
 
 // Creates a new Member
 // Ignores and returns nil if entry already exists. Returns an error if creation fails
-func CreateMember(db *gorm.DB, mem *Member) (*Member, error) {
-	err := db.Where(mem).FirstOrCreate(mem).Error
+func (ds *Plugin) CreateMember(mem *Member) (*Member, error) {
+	err := ds.db.Where(mem).FirstOrCreate(mem).Error
 	if err != nil {
 		return nil, fmt.Errorf("sqlstore error: %v", err)
 	}
@@ -159,21 +168,21 @@ func CreateMember(db *gorm.DB, mem *Member) (*Member, error) {
 
 // Creates a new Membership from a Member
 // Ignores and returns nil if entry already exists. Returns an error if creation fails
-func CreateMembership(db *gorm.DB, memb *Membership, memberID uint, bridgeID uint) (*Membership, error) {
+func (ds *Plugin) CreateMembership(memb *Membership, memberID uint, bridgeID uint) (*Membership, error) {
 	// Check if Member exists in DB
-	mem, err := RetrieveMemberbyID(db, memberID)
+	mem, err := ds.RetrieveMemberbyID(memberID)
 	if err != nil {
 		return nil, err
 	}
 	var br *Bridge
 	// Check if Bridge exists in DB
-	br, err = RetrieveBridgebyID(db, bridgeID)
+	br, err = ds.RetrieveBridgebyID(bridgeID)
 	if err != nil {
 		return nil, err
 	}
 	memb.MemberID = mem.ID // Fill in the BridgeID for the bridge
 	memb.BridgeID = br.ID  // Fill in the BridgeID for the bridge
-	err = db.Where(memb).FirstOrCreate(memb).Error
+	err = ds.db.Where(memb).FirstOrCreate(memb).Error
 	if err != nil {
 		return nil, fmt.Errorf("sqlstore error: %v", err)
 	}
@@ -182,14 +191,14 @@ func CreateMembership(db *gorm.DB, memb *Membership, memberID uint, bridgeID uin
 
 // Create a new Trustbundle from a Member
 // Ignores and returns nil if entry already exists. Returns an error if creation fails
-func CreateTrustBundle(db *gorm.DB, trust *TrustBundle, memberID uint) (*TrustBundle, error) {
+func (ds *Plugin) CreateTrustBundle(trust *TrustBundle, memberID uint) (*TrustBundle, error) {
 
-	mem, err := RetrieveMemberbyID(db, memberID)
+	mem, err := ds.RetrieveMemberbyID(memberID)
 	if err != nil {
 		return nil, err
 	}
 	trust.MemberID = mem.ID // Fill in the BridgeID for the bridge
-	err = db.Where(trust).FirstOrCreate(trust).Error
+	err = ds.db.Where(trust).FirstOrCreate(trust).Error
 	if err != nil {
 		return nil, fmt.Errorf("sqlstore error: %v", err)
 	}
@@ -198,22 +207,22 @@ func CreateTrustBundle(db *gorm.DB, trust *TrustBundle, memberID uint) (*TrustBu
 
 // Adds a new Relation between Two SPIRE Servers in DB using description as reference for the IDs
 // Ignores and returns nil if entry already exists. Returns an error if creation fails
-func CreateRelationship(db *gorm.DB, newrelation *Relationship, sourceID uint, targetID uint) error {
+func (ds *Plugin) CreateRelationship(newrelation *Relationship, sourceID uint, targetID uint) error {
 
 	// Check if Member exists in DB
-	sourcemember, err := RetrieveMemberbyID(db, sourceID)
+	sourcemember, err := ds.RetrieveMemberbyID(sourceID)
 	if err != nil {
 		return err
 	}
 	var targetmember *Member
 	// Check if Member exists in DB
-	targetmember, err = RetrieveMemberbyID(db, targetID)
+	targetmember, err = ds.RetrieveMemberbyID(targetID)
 	if err != nil {
 		return err
 	}
 	newrelation.MemberID = sourcemember.ID       // Fill in the Source MemberID (Foreign Key)
 	newrelation.TargetMemberID = targetmember.ID // Fill in the Target MemberID
-	err = db.Where(&newrelation).FirstOrCreate(&newrelation).Error
+	err = ds.db.Where(&newrelation).FirstOrCreate(&newrelation).Error
 	if err != nil {
 		return fmt.Errorf("sqlstore error: %v", err)
 	}
@@ -221,9 +230,9 @@ func CreateRelationship(db *gorm.DB, newrelation *Relationship, sourceID uint, t
 }
 
 // retrieves an Organization from the Database by Name. returns an error if query fails
-func RetrieveOrganizationbyID(db *gorm.DB, orgID uint) (*Organization, error) {
+func (ds *Plugin) RetrieveOrganizationbyID(orgID uint) (*Organization, error) {
 	var org *Organization = &Organization{}
-	err := db.Where("id = ?", orgID).First(org).Error
+	err := ds.db.Where("id = ?", orgID).First(org).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) { // If does not, throw an error
 		return nil, fmt.Errorf("sqlstore error: organization %v does not exist in db", orgID)
 	}
@@ -234,9 +243,9 @@ func RetrieveOrganizationbyID(db *gorm.DB, orgID uint) (*Organization, error) {
 }
 
 // RetrieveBridgebyDescription retrieves a Bridge from the Database by description. returns an error if query fails
-func RetrieveBridgebyID(db *gorm.DB, brID uint) (*Bridge, error) {
+func (ds *Plugin) RetrieveBridgebyID(brID uint) (*Bridge, error) {
 	var br *Bridge = &Bridge{}
-	err := db.Where("id = ?", brID).First(br).Error
+	err := ds.db.Where("id = ?", brID).First(br).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("sqlstore error: bridge ID %v does not exist in db", brID)
 	}
@@ -247,9 +256,9 @@ func RetrieveBridgebyID(db *gorm.DB, brID uint) (*Bridge, error) {
 }
 
 // Retrieves all Bridges from the Database using Organization ID as reference. returns an error if the query fails
-func RetrieveAllBridgesbyOrgID(db *gorm.DB, orgID uint) (*[]Bridge, error) {
+func (ds *Plugin) RetrieveAllBridgesbyOrgID(orgID uint) (*[]Bridge, error) {
 	var org *Organization = &Organization{}
-	err := db.Preload("Bridges").Where("ID = ?", orgID).Find(org).Error
+	err := ds.db.Preload("Bridges").Where("ID = ?", orgID).Find(org).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("sqlstore error: organization ID %d does not exist in db", orgID)
 	}
@@ -260,9 +269,9 @@ func RetrieveAllBridgesbyOrgID(db *gorm.DB, orgID uint) (*[]Bridge, error) {
 }
 
 // Retrieves all Members from the Database using bridge ID as reference. returns an error if the query fails
-func RetrieveAllMembershipsbyBridgeID(db *gorm.DB, bridgeID uint) (*[]Membership, error) {
+func (ds *Plugin) RetrieveAllMembershipsbyBridgeID(bridgeID uint) (*[]Membership, error) {
 	var br *Bridge = &Bridge{}
-	err := db.Preload("Memberships").Where("ID = ?", bridgeID).Find(br).Error
+	err := ds.db.Preload("Memberships").Where("ID = ?", bridgeID).Find(br).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("sqlstore error: bridge %d does not exist in db", bridgeID)
 	}
@@ -273,9 +282,9 @@ func RetrieveAllMembershipsbyBridgeID(db *gorm.DB, bridgeID uint) (*[]Membership
 }
 
 // Retrieves all Members from the Database using bridge ID as reference. returns an error if the query fails
-func RetrieveAllMembersbyBridgeID(db *gorm.DB, bridgeID uint) (mem *[]Member, err error) {
+func (ds *Plugin) RetrieveAllMembersbyBridgeID(bridgeID uint) (mem *[]Member, err error) {
 	var br *Bridge = &Bridge{}
-	err = db.Preload("Memberships.member").Where("ID = ?", bridgeID).Find(br).Error
+	err = ds.db.Preload("Memberships.member").Where("ID = ?", bridgeID).Find(br).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("sqlstore error: bridge %d does not exist in db", bridgeID)
 	}
@@ -289,9 +298,9 @@ func RetrieveAllMembersbyBridgeID(db *gorm.DB, bridgeID uint) (mem *[]Member, er
 }
 
 // Retrieves all Members from the Database using bridge ID as reference. returns an error if the query fails
-func RetrieveAllBridgesbyMemberID(db *gorm.DB, memberID uint) (mem *[]Bridge, err error) {
+func (ds *Plugin) RetrieveAllBridgesbyMemberID(memberID uint) (mem *[]Bridge, err error) {
 	var member *Member = &Member{}
-	err = db.Preload("Memberships.bridge").Where("ID = ?", memberID).Find(member).Error
+	err = ds.db.Preload("Memberships.bridge").Where("ID = ?", memberID).Find(member).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("sqlstore error: bridge %d does not exist in db", memberID)
 	}
@@ -305,9 +314,9 @@ func RetrieveAllBridgesbyMemberID(db *gorm.DB, memberID uint) (mem *[]Bridge, er
 }
 
 // Retrieves all Memberships from the Database using memberID as reference. returns an error if the query fails
-func RetrieveAllMembershipsbyMemberID(db *gorm.DB, memberID uint) (*[]Membership, error) {
+func (ds *Plugin) RetrieveAllMembershipsbyMemberID(memberID uint) (*[]Membership, error) {
 	var member *Member = &Member{}
-	err := db.Preload("Memberships").Where("ID = ?", memberID).Find(member).Error
+	err := ds.db.Preload("Memberships").Where("ID = ?", memberID).Find(member).Error
 	if err != nil {
 		return nil, fmt.Errorf("sqlstore error: %v. Membership query failed with member ID %d", err, memberID)
 	}
@@ -315,9 +324,9 @@ func RetrieveAllMembershipsbyMemberID(db *gorm.DB, memberID uint) (*[]Membership
 }
 
 /// Retrieves all Relationships from the Database using memberID as reference. returns an error if the query fails
-func RetrieveAllRelationshipsbyMemberID(db *gorm.DB, memberID uint) (*[]Relationship, error) {
+func (ds *Plugin) RetrieveAllRelationshipsbyMemberID(memberID uint) (*[]Relationship, error) {
 	var member *Member = &Member{}
-	err := db.Preload("Relationships").Where("ID = ?", memberID).Find(member).Error
+	err := ds.db.Preload("Relationships").Where("ID = ?", memberID).Find(member).Error
 	if err != nil {
 		return nil, fmt.Errorf("sqlstore error: %v. relationship query failed with member ID %d", err, memberID)
 	}
@@ -325,9 +334,9 @@ func RetrieveAllRelationshipsbyMemberID(db *gorm.DB, memberID uint) (*[]Relation
 }
 
 // Retrieves all Trusts from the Database using memberID as reference. returns an error if the query fails
-func RetrieveAllTrustBundlesbyMemberID(db *gorm.DB, memberID uint) (*[]TrustBundle, error) {
+func (ds *Plugin) RetrieveAllTrustBundlesbyMemberID(memberID uint) (*[]TrustBundle, error) {
 	var member *Member = &Member{}
-	err := db.Preload("TrustBundles").Where("ID = ?", memberID).Find(member).Error
+	err := ds.db.Preload("TrustBundles").Where("ID = ?", memberID).Find(member).Error
 	if err != nil {
 		return nil, fmt.Errorf("sqlstore error: %v. trust query failed with member id %d", err, memberID)
 	}
@@ -335,9 +344,9 @@ func RetrieveAllTrustBundlesbyMemberID(db *gorm.DB, memberID uint) (*[]TrustBund
 }
 
 // Retrieves a Member from the Database by description. returns an error if the query fails
-func RetrieveMemberbyID(db *gorm.DB, memberID uint) (*Member, error) {
+func (ds *Plugin) RetrieveMemberbyID(memberID uint) (*Member, error) {
 	var member *Member = &Member{}
-	err := db.Where("id = ?", memberID).First(member).Error
+	err := ds.db.Where("id = ?", memberID).First(member).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) { // If does not, throw an error
 		return nil, fmt.Errorf("sqlstore error: Member with ID=%v does not exist in DB", memberID)
 	}
@@ -348,9 +357,9 @@ func RetrieveMemberbyID(db *gorm.DB, memberID uint) (*Member, error) {
 }
 
 // RetrieveMembershipbyToken retrieves a Membership from the Database bigger than an specific date. returns an error if something goes wrong.
-func RetrieveMembershipbyCreationDate(db *gorm.DB, date time.Time) (*Membership, error) {
+func (ds *Plugin) RetrieveMembershipbyCreationDate(date time.Time) (*Membership, error) {
 	var membership *Membership = &Membership{}
-	err := db.Where("created_at >= ?", date).First(membership).Error
+	err := ds.db.Where("created_at >= ?", date).First(membership).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) { // If does not, throw an error
 		return nil, fmt.Errorf("sqlstore error: member created_at=%v does not exist in DB", date)
 	}
@@ -361,9 +370,9 @@ func RetrieveMembershipbyCreationDate(db *gorm.DB, date time.Time) (*Membership,
 }
 
 // RetrieveMembershipbyToken retrieves a Membership from the Database by Token. returns an error if something goes wrong.
-func RetrieveMembershipbyToken(db *gorm.DB, token string) (*Membership, error) {
+func (ds *Plugin) RetrieveMembershipbyToken(token string) (*Membership, error) {
 	var membership *Membership = &Membership{}
-	err := db.Where("join_token = ?", token).First(membership).Error
+	err := ds.db.Where("join_token = ?", token).First(membership).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) { // If does not, throw an error
 		return nil, fmt.Errorf("sqlstore error: Member with Token=%v does not exist in DB", token)
 	}
@@ -374,9 +383,9 @@ func RetrieveMembershipbyToken(db *gorm.DB, token string) (*Membership, error) {
 }
 
 // retrieves a Relationship from the Database by Source and Target IDs. returns an error if something goes wrong.
-func RetrieveRelationshipbySourceandTargetID(db *gorm.DB, source uint, target uint) (*Relationship, error) {
+func (ds *Plugin) RetrieveRelationshipbySourceandTargetID(source uint, target uint) (*Relationship, error) {
 	var relationship *Relationship = &Relationship{}
-	err := db.Where("MemberID = ? AND TargetMemberID = ?", source, target).First(relationship).Error
+	err := ds.db.Where("MemberID = ? AND TargetMemberID = ?", source, target).First(relationship).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) { // If does not, throw an error
 		return nil, fmt.Errorf("sqlstore error: Member with SourceMemberID=%v and/or TargetMemberID=%v does not exist in DB", source, target)
 	}
@@ -387,9 +396,9 @@ func RetrieveRelationshipbySourceandTargetID(db *gorm.DB, source uint, target ui
 }
 
 // retrieves a TrustBundle from the Database by Token. returns an error if something goes wrong.
-func RetrieveTrustbundlebyMemberID(db *gorm.DB, memberID string) (*TrustBundle, error) {
+func (ds *Plugin) RetrieveTrustbundlebyMemberID(memberID string) (*TrustBundle, error) {
 	var trustbundle *TrustBundle = &TrustBundle{}
-	err := db.Where("MemberID = ?", memberID).First(trustbundle).Error
+	err := ds.db.Where("MemberID = ?", memberID).First(trustbundle).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) { // If does not, throw an error
 		return nil, fmt.Errorf("sqlstore error: Member with Token=%v does not exist in DB", memberID)
 	}
@@ -400,11 +409,11 @@ func RetrieveTrustbundlebyMemberID(db *gorm.DB, memberID string) (*TrustBundle, 
 }
 
 // UpdateBridge Updates an existing Bridge with the new Bridge as argument. The ID will be used as reference.
-func UpdateBridge(db *gorm.DB, br Bridge) error {
+func (ds *Plugin) UpdateBridge(br Bridge) error {
 	if br.ID == 0 {
 		return fmt.Errorf("sqlstore error: Bridge ID is invalid")
 	}
-	err := db.Model(&br).Updates(&br).Error
+	err := ds.db.Model(&br).Updates(&br).Error
 	if err != nil {
 		return fmt.Errorf("sqlstore error: %v", err)
 	}
@@ -412,11 +421,11 @@ func UpdateBridge(db *gorm.DB, br Bridge) error {
 }
 
 // Updates an existing Organization with the new Organization as argument. The ID will be used as reference.
-func UpdateOrganization(db *gorm.DB, org Organization) error {
+func (ds *Plugin) UpdateOrganization(org Organization) error {
 	if org.ID == 0 {
 		return fmt.Errorf("sqlstore error: organization ID is invalid")
 	}
-	err := db.Model(&org).Updates(&org).Error
+	err := ds.db.Model(&org).Updates(&org).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) { // If does not, throw an error
 		return fmt.Errorf("sqlstore error: organization with ID %d does not exist", org.ID)
 	}
@@ -427,11 +436,11 @@ func UpdateOrganization(db *gorm.DB, org Organization) error {
 }
 
 // Updates an existing Member with the new Member as argument. The ID will be used as reference.
-func UpdateMember(db *gorm.DB, member Member) error {
+func (ds *Plugin) UpdateMember(member Member) error {
 	if member.ID == 0 {
 		return fmt.Errorf("sqlstore error: member id is invalid")
 	}
-	err := db.Model(&member).Updates(&member).Error
+	err := ds.db.Model(&member).Updates(&member).Error
 	if err != nil {
 		return fmt.Errorf("sqlstore error: %v", err)
 	}
@@ -439,11 +448,11 @@ func UpdateMember(db *gorm.DB, member Member) error {
 }
 
 // Updates an existing Member with the new Member as argument. The ID will be used as reference.
-func UpdateMembership(db *gorm.DB, membership Membership) error {
+func (ds *Plugin) UpdateMembership(membership Membership) error {
 	if membership.ID == 0 {
 		return fmt.Errorf("sqlstore error: membership id is invalid")
 	}
-	err := db.Model(&membership).Updates(&membership).Error
+	err := ds.db.Model(&membership).Updates(&membership).Error
 	if err != nil {
 		return fmt.Errorf("sqlstore error: %v", err)
 	}
@@ -451,11 +460,11 @@ func UpdateMembership(db *gorm.DB, membership Membership) error {
 }
 
 // Updates an existing Member with the new Member as argument. The ID will be used as reference.
-func UpdateTrust(db *gorm.DB, trust TrustBundle) error {
+func (ds *Plugin) UpdateTrust(trust TrustBundle) error {
 	if trust.ID == 0 {
 		return fmt.Errorf("sqlstore error: membership id is invalid")
 	}
-	err := db.Model(&trust).Updates(&trust).Error
+	err := ds.db.Model(&trust).Updates(&trust).Error
 	if err != nil {
 		return fmt.Errorf("sqlstore error: %v", err)
 	}
@@ -463,27 +472,27 @@ func UpdateTrust(db *gorm.DB, trust TrustBundle) error {
 }
 
 // Delete Organization by name from the DB with cascading, returning error if something happens
-func DeleteOrganizationbyID(db *gorm.DB, orgID uint) error {
-	org, err := RetrieveOrganizationbyID(db, orgID)
+func (ds *Plugin) DeleteOrganizationbyID(orgID uint) error {
+	org, err := ds.RetrieveOrganizationbyID(orgID)
 	if err != nil {
 		return err
 	}
 
-	if db.Name() == "sqlite" {
+	if ds.db.Name() == "sqlite" {
 		// Workaround for https://github.com/mattn/go-sqlite3/pull/802 that
 		// might prevent DELETE CASCADE on go-sqlite3 driver from working
-		brs, err := RetrieveAllBridgesbyOrgID(db, orgID)
+		brs, err := ds.RetrieveAllBridgesbyOrgID(orgID)
 		if err != nil {
 			return err
 		}
 		for _, br := range *brs {
-			err = DeleteBridgebyID(db, br.ID)
+			err = ds.DeleteBridgebyID(br.ID)
 			if err != nil {
 				return err
 			}
 		}
 	}
-	err = db.Model(&org).Delete(&org).Error
+	err = ds.db.Model(&org).Delete(&org).Error
 	if err != nil {
 		return fmt.Errorf("sqlstore error: %v", err)
 	}
@@ -491,27 +500,27 @@ func DeleteOrganizationbyID(db *gorm.DB, orgID uint) error {
 }
 
 // Delete Organization by Description from the DB with cascading
-func DeleteBridgebyID(db *gorm.DB, bridgeID uint) error {
-	br, err := RetrieveBridgebyID(db, bridgeID)
+func (ds *Plugin) DeleteBridgebyID(bridgeID uint) error {
+	br, err := ds.RetrieveBridgebyID(bridgeID)
 	if err != nil {
 		return err
 	}
-	if db.Name() == "sqlite" {
+	if ds.db.Name() == "sqlite" {
 		// Workaround for https://github.com/mattn/go-sqlite3/pull/802 that
 		// might prevent DELETE CASCADE on go-sqlite3 driver from working
-		memberships, err := RetrieveAllMembershipsbyBridgeID(db, bridgeID)
+		memberships, err := ds.RetrieveAllMembershipsbyBridgeID(bridgeID)
 		if err != nil {
 			return err
 		}
 		for _, membership := range *memberships {
-			err = DeleteMembershipbyToken(db, membership.JoinToken)
+			err = ds.DeleteMembershipbyToken(membership.JoinToken)
 			if err != nil {
 				return err
 			}
 		}
 	}
 	// Deletes the Bridge. If its MySQL or Postgres it will cascade automatically by DB model constraint
-	err = db.Model(&br).Delete(&br).Error
+	err = ds.db.Model(&br).Delete(&br).Error
 	if err != nil {
 		return fmt.Errorf("sqlstore error: %v", err)
 	}
@@ -519,30 +528,30 @@ func DeleteBridgebyID(db *gorm.DB, bridgeID uint) error {
 }
 
 // Delete Organization by name from the DB with cascading
-func DeleteMemberbyID(db *gorm.DB, memberID uint) error {
-	member, err := RetrieveMemberbyID(db, memberID)
+func (ds *Plugin) DeleteMemberbyID(memberID uint) error {
+	member, err := ds.RetrieveMemberbyID(memberID)
 	if err != nil {
 		return fmt.Errorf("sqlstore error: %v", err)
 	}
-	if db.Name() == "sqlite" {
+	if ds.db.Name() == "sqlite" {
 		// Workaround for https://github.com/mattn/go-sqlite3/pull/802 that
 		// might prevent DELETE CASCADE on go-sqlite3 driver from working
-		err = DeleteAllMembershipsbyMemberID(db, memberID)
+		err = ds.DeleteAllMembershipsbyMemberID(memberID)
 		if err != nil {
 			return err
 		}
-		err = DeleteAllRelationshipsbyMemberID(db, memberID)
+		err = ds.DeleteAllRelationshipsbyMemberID(memberID)
 		if err != nil {
 			return err
 		}
-		err = DeleteAllTrustbundlesbyMemberID(db, memberID)
+		err = ds.DeleteAllTrustbundlesbyMemberID(memberID)
 		if err != nil {
 			return err
 		}
 
 	}
 	// Deletes the Member. If its MySQL or Postgres it will cascade automatically by DB model constraint
-	err = db.Model(&member).Delete(&member).Error
+	err = ds.db.Model(&member).Delete(&member).Error
 	if err != nil {
 		return fmt.Errorf("sqlstore error: %v", err)
 	}
@@ -550,13 +559,13 @@ func DeleteMemberbyID(db *gorm.DB, memberID uint) error {
 }
 
 // Deletes all Memberships using memberid as FK
-func DeleteAllMembershipsbyMemberID(db *gorm.DB, memberid uint) error {
-	memberships, err := RetrieveAllMembershipsbyMemberID(db, memberid)
+func (ds *Plugin) DeleteAllMembershipsbyMemberID(memberid uint) error {
+	memberships, err := ds.RetrieveAllMembershipsbyMemberID(memberid)
 	if err != nil {
 		return err
 	}
 	for _, membership := range *memberships {
-		err = db.Model(&membership).Delete(&membership).Error
+		err = ds.db.Model(&membership).Delete(&membership).Error
 		if err != nil {
 			return fmt.Errorf("sqlstore error: %v. Error deleting Relationships from member with id %d", err, memberid)
 		}
@@ -565,13 +574,13 @@ func DeleteAllMembershipsbyMemberID(db *gorm.DB, memberid uint) error {
 }
 
 // Deletes all Memberships using memberid as FK
-func DeleteAllMembershipsbyBridgeID(db *gorm.DB, bridgeid uint) error {
-	memberships, err := RetrieveAllMembershipsbyBridgeID(db, bridgeid)
+func (ds *Plugin) DeleteAllMembershipsbyBridgeID(bridgeid uint) error {
+	memberships, err := ds.RetrieveAllMembershipsbyBridgeID(bridgeid)
 	if err != nil {
 		return err
 	}
 	for _, membership := range *memberships {
-		err = db.Model(&membership).Delete(&membership).Error
+		err = ds.db.Model(&membership).Delete(&membership).Error
 		if err != nil {
 			return fmt.Errorf("sqlstore error: %v. Error deleting Relationships from bridge with id %d", err, bridgeid)
 		}
@@ -580,13 +589,13 @@ func DeleteAllMembershipsbyBridgeID(db *gorm.DB, bridgeid uint) error {
 }
 
 // Deletes all Relationships using memberid as FK
-func DeleteAllRelationshipsbyMemberID(db *gorm.DB, memberid uint) error {
-	relations, err := RetrieveAllRelationshipsbyMemberID(db, memberid)
+func (ds *Plugin) DeleteAllRelationshipsbyMemberID(memberid uint) error {
+	relations, err := ds.RetrieveAllRelationshipsbyMemberID(memberid)
 	if err != nil {
 		return err
 	}
 	for _, relation := range *relations {
-		err = db.Model(&relation).Delete(&relation).Error
+		err = ds.db.Model(&relation).Delete(&relation).Error
 		if err != nil {
 			return fmt.Errorf("sqlstore error: %v. Error deleting Relationships from member with id %d", err, memberid)
 		}
@@ -595,13 +604,13 @@ func DeleteAllRelationshipsbyMemberID(db *gorm.DB, memberid uint) error {
 }
 
 // Deletes all Trusts using memberid as FK
-func DeleteAllTrustbundlesbyMemberID(db *gorm.DB, memberid uint) error {
-	trusts, err := RetrieveAllTrustBundlesbyMemberID(db, memberid)
+func (ds *Plugin) DeleteAllTrustbundlesbyMemberID(memberid uint) error {
+	trusts, err := ds.RetrieveAllTrustBundlesbyMemberID(memberid)
 	if err != nil {
 		return err
 	}
 	for _, trust := range *trusts {
-		err = db.Model(&trust).Delete(&trust).Error
+		err = ds.db.Model(&trust).Delete(&trust).Error
 		if err != nil {
 			return fmt.Errorf("sqlstore error: %v. Not able to fully delete trustbundle %s", err, trust.TrustBundle)
 		}
@@ -610,12 +619,12 @@ func DeleteAllTrustbundlesbyMemberID(db *gorm.DB, memberid uint) error {
 }
 
 // Delete membership by Token from the DB
-func DeleteMembershipbyToken(db *gorm.DB, name string) error {
-	membership, err := RetrieveMembershipbyToken(db, name)
+func (ds *Plugin) DeleteMembershipbyToken(name string) error {
+	membership, err := ds.RetrieveMembershipbyToken(name)
 	if err != nil {
 		return err
 	}
-	err = db.Model(&membership).Delete(&membership).Error
+	err = ds.db.Model(&membership).Delete(&membership).Error
 	if err != nil {
 		return fmt.Errorf("sqlstore error: %v. Not able to fully delete membership  with token %s", err, membership.JoinToken)
 	}
@@ -623,8 +632,8 @@ func DeleteMembershipbyToken(db *gorm.DB, name string) error {
 }
 
 // Delete Relationship by Source and Target IDs from the DB
-func DeleteRelationshipbySourceTargetID(db *gorm.DB, source uint, target uint) error {
-	relationship, err := RetrieveRelationshipbySourceandTargetID(db, source, target)
+func (ds *Plugin) DeleteRelationshipbySourceTargetID(db *gorm.DB, source uint, target uint) error {
+	relationship, err := ds.RetrieveRelationshipbySourceandTargetID(source, target)
 	if err != nil {
 		return err
 	}
@@ -636,8 +645,8 @@ func DeleteRelationshipbySourceTargetID(db *gorm.DB, source uint, target uint) e
 }
 
 // Delete Trusts by MemberID from the DB
-func DeleteTrustBundlebyMemberID(db *gorm.DB, memberID string) error {
-	trust, err := RetrieveTrustbundlebyMemberID(db, memberID)
+func (ds *Plugin) DeleteTrustBundlebyMemberID(db *gorm.DB, memberID string) error {
+	trust, err := ds.RetrieveTrustbundlebyMemberID(memberID)
 	if err != nil {
 		return err
 	}
