@@ -28,6 +28,7 @@ func (ds *Plugin) OpenDB(connectionString, dbtype string) (err error) {
 
 	switch dbtype {
 	case SQLite:
+		fmt.Printf("sqlite\n")
 		dialectvar = sqliteDB{}
 	case PostgreSQL:
 		dialectvar = postgresDB{}
@@ -37,6 +38,7 @@ func (ds *Plugin) OpenDB(connectionString, dbtype string) (err error) {
 		return fmt.Errorf("unsupported database_type: %s" + dbtype)
 	}
 	ds.db, err = dialectvar.connect(connectionString)
+
 	if err != nil {
 		return fmt.Errorf("error connecting to: %s", connectionString)
 	}
@@ -124,23 +126,17 @@ func (ds *Plugin) createTrustbundleTableInDB() error {
 	return nil
 }
 
+// Implements the CreateOrganization function from Datastore
+// Creates a new Organization in the database. Returns error if fails.
 func (ds *Plugin) CreateOrganization(ctx context.Context, org *management.Organization) (*management.Organization, error) {
 
-	organization, err := ds.createOrganization(&Organization{Name: (*org).Name})
-	if err != nil {
-		return nil, err
-	}
-	org.Id = int64((*organization).ID)
-	return org, nil
-}
+	organization := Organization{Name: (*org).Name}
+	fmt.Printf("TEST POINTER2 %p\n", ds.db)
 
-// Insert a new Organization into the DB.
-// Ignores and returns nil if entry already exists. Returns an error if creation fails
-func (ds *Plugin) createOrganization(org *Organization) (*Organization, error) {
-
-	if err := ds.db.Where(&org).FirstOrCreate(org).Error; err != nil {
+	if err := ds.db.Where(&organization).FirstOrCreate(&organization).Error; err != nil {
 		return nil, fmt.Errorf("sqlstore error: %v", err)
 	}
+	org.Id = int64((organization).ID)
 	return org, nil
 }
 
@@ -153,7 +149,7 @@ func (ds *Plugin) CreateBridge(br *Bridge, orgID uint) (*Bridge, error) {
 		return nil, err
 	}
 	br.OrganizationID = org.ID // Fill in the OrgID for the bridge
-	err = ds.db.Where(&br).FirstOrCreate(br).Error
+	err = ds.db.Where(br).FirstOrCreate(br).Error
 	if err != nil {
 		return nil, fmt.Errorf("sqlstore error: %v", err)
 	}
@@ -186,8 +182,8 @@ func (ds *Plugin) CreateMembership(memb *Membership, memberID uint, bridgeID uin
 	}
 	memb.MemberID = mem.ID // Fill in the BridgeID for the bridge
 	memb.BridgeID = br.ID  // Fill in the BridgeID for the bridge
-	err = ds.db.Where(memb).FirstOrCreate(memb).Error
-	if err != nil {
+
+	if err = ds.db.Where(memb).FirstOrCreate(memb).Error; err != nil {
 		return nil, fmt.Errorf("sqlstore error: %v", err)
 	}
 	return memb, nil
@@ -202,8 +198,8 @@ func (ds *Plugin) CreateTrustBundle(trust *TrustBundle, memberID uint) (*TrustBu
 		return nil, err
 	}
 	trust.MemberID = mem.ID // Fill in the BridgeID for the bridge
-	err = ds.db.Where(trust).FirstOrCreate(trust).Error
-	if err != nil {
+
+	if err = ds.db.Where(trust).FirstOrCreate(trust).Error; err != nil {
 		return nil, fmt.Errorf("sqlstore error: %v", err)
 	}
 	return trust, nil
@@ -224,10 +220,10 @@ func (ds *Plugin) CreateRelationship(newrelation *Relationship, sourceID uint, t
 	if err != nil {
 		return err
 	}
-	newrelation.MemberID = sourcemember.ID       // Fill in the Source MemberID (Foreign Key)
-	newrelation.TargetMemberID = targetmember.ID // Fill in the Target MemberID
-	err = ds.db.Where(&newrelation).FirstOrCreate(&newrelation).Error
-	if err != nil {
+	(*newrelation).MemberID = sourcemember.ID       // Fill in the Source MemberID (Foreign Key)
+	(*newrelation).TargetMemberID = targetmember.ID // Fill in the Target MemberID
+
+	if err = ds.db.Where(newrelation).FirstOrCreate(newrelation).Error; err != nil {
 		return fmt.Errorf("sqlstore error: %v", err)
 	}
 	return nil
@@ -285,7 +281,8 @@ func (ds *Plugin) RetrieveAllMembershipsbyBridgeID(bridgeID uint) (*[]Membership
 	return &br.Memberships, nil
 }
 
-// Retrieves all Members from the Database using bridge ID as reference. returns an error if the query fails
+// Retrieves all Members from the Database using bridge ID as reference.
+// Returns an error if the query fails
 func (ds *Plugin) RetrieveAllMembersbyBridgeID(bridgeID uint) (mem *[]Member, err error) {
 	var br *Bridge = &Bridge{}
 	err = ds.db.Preload("Memberships.member").Where("ID = ?", bridgeID).Find(br).Error
@@ -301,7 +298,8 @@ func (ds *Plugin) RetrieveAllMembersbyBridgeID(bridgeID uint) (mem *[]Member, er
 	return mem, nil
 }
 
-// Retrieves all Members from the Database using bridge ID as reference. returns an error if the query fails
+// Retrieves all Members from the Database using bridge ID as reference.
+
 func (ds *Plugin) RetrieveAllBridgesbyMemberID(memberID uint) (mem *[]Bridge, err error) {
 	var member *Member = &Member{}
 	err = ds.db.Preload("Memberships.bridge").Where("ID = ?", memberID).Find(member).Error
@@ -317,7 +315,8 @@ func (ds *Plugin) RetrieveAllBridgesbyMemberID(memberID uint) (mem *[]Bridge, er
 	return mem, nil
 }
 
-// Retrieves all Memberships from the Database using memberID as reference. returns an error if the query fails
+// Retrieves all Memberships from the Database using memberID as reference.
+// Returns an error if the query fails
 func (ds *Plugin) RetrieveAllMembershipsbyMemberID(memberID uint) (*[]Membership, error) {
 	var member *Member = &Member{}
 	err := ds.db.Preload("Memberships").Where("ID = ?", memberID).Find(member).Error
@@ -327,7 +326,8 @@ func (ds *Plugin) RetrieveAllMembershipsbyMemberID(memberID uint) (*[]Membership
 	return &member.Memberships, nil
 }
 
-/// Retrieves all Relationships from the Database using memberID as reference. returns an error if the query fails
+/// Retrieves all Relationships from the Database using memberID as reference.
+// Returns an error if the query fails
 func (ds *Plugin) RetrieveAllRelationshipsbyMemberID(memberID uint) (*[]Relationship, error) {
 	var member *Member = &Member{}
 	err := ds.db.Preload("Relationships").Where("ID = ?", memberID).Find(member).Error
@@ -337,7 +337,8 @@ func (ds *Plugin) RetrieveAllRelationshipsbyMemberID(memberID uint) (*[]Relation
 	return &member.Relationships, nil
 }
 
-// Retrieves all Trusts from the Database using memberID as reference. returns an error if the query fails
+// Retrieves all Trusts from the Database using memberID as reference.
+// Returns an error if the query fails
 func (ds *Plugin) RetrieveAllTrustBundlesbyMemberID(memberID uint) (*[]TrustBundle, error) {
 	var member *Member = &Member{}
 	err := ds.db.Preload("TrustBundles").Where("ID = ?", memberID).Find(member).Error
@@ -347,7 +348,8 @@ func (ds *Plugin) RetrieveAllTrustBundlesbyMemberID(memberID uint) (*[]TrustBund
 	return &member.TrustBundles, nil
 }
 
-// Retrieves a Member from the Database by description. returns an error if the query fails
+// Retrieves a Member from the Database by description.
+// Returns an error if the query fails
 func (ds *Plugin) RetrieveMemberbyID(memberID uint) (*Member, error) {
 	var member *Member = &Member{}
 	err := ds.db.Where("id = ?", memberID).First(member).Error
@@ -360,7 +362,8 @@ func (ds *Plugin) RetrieveMemberbyID(memberID uint) (*Member, error) {
 	return member, nil
 }
 
-// RetrieveMembershipbyToken retrieves a Membership from the Database bigger than an specific date. returns an error if something goes wrong.
+// RetrieveMembershipbyToken retrieves a Membership from the Database bigger than an specific date.
+// Returns an error if the query fails
 func (ds *Plugin) RetrieveMembershipbyCreationDate(date time.Time) (*Membership, error) {
 	var membership *Membership = &Membership{}
 	err := ds.db.Where("created_at >= ?", date).First(membership).Error
@@ -373,7 +376,8 @@ func (ds *Plugin) RetrieveMembershipbyCreationDate(date time.Time) (*Membership,
 	return membership, nil
 }
 
-// RetrieveMembershipbyToken retrieves a Membership from the Database by Token. returns an error if something goes wrong.
+// RetrieveMembershipbyToken retrieves a Membership from the Database by Token.
+// Returns an error if the query fails
 func (ds *Plugin) RetrieveMembershipbyToken(token string) (*Membership, error) {
 	var membership *Membership = &Membership{}
 	err := ds.db.Where("join_token = ?", token).First(membership).Error
@@ -386,7 +390,8 @@ func (ds *Plugin) RetrieveMembershipbyToken(token string) (*Membership, error) {
 	return membership, nil
 }
 
-// retrieves a Relationship from the Database by Source and Target IDs. returns an error if something goes wrong.
+// retrieves a Relationship from the Database by Source and Target IDs.
+// Returns an error if the query fails
 func (ds *Plugin) RetrieveRelationshipbySourceandTargetID(source uint, target uint) (*Relationship, error) {
 	var relationship *Relationship = &Relationship{}
 	err := ds.db.Where("MemberID = ? AND TargetMemberID = ?", source, target).First(relationship).Error
@@ -399,7 +404,8 @@ func (ds *Plugin) RetrieveRelationshipbySourceandTargetID(source uint, target ui
 	return relationship, nil
 }
 
-// retrieves a TrustBundle from the Database by Token. returns an error if something goes wrong.
+// retrieves a TrustBundle from the Database by Token.
+// Returns an error if the query fails
 func (ds *Plugin) RetrieveTrustbundlebyMemberID(memberID string) (*TrustBundle, error) {
 	var trustbundle *TrustBundle = &TrustBundle{}
 	err := ds.db.Where("MemberID = ?", memberID).First(trustbundle).Error
